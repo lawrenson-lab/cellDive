@@ -1,0 +1,57 @@
+```{r}
+library(tidyverse)
+files<-list.files("/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp",full.names = T)
+files<-files[str_detect(files,"SL")]
+files<-list.files(files,full.names = T)
+files<-files[str_detect(files,"csv")]
+data<-lapply(files,data.table::fread)
+#8.5 GB 
+names(data)<-str_remove_all(files,".+temp\\/|.pix.+")
+sapply(data,nrow)#size in aggregated pixels
+#SL260087 SL260088 SL260089 SL260090 SL260091 SL260092 
+#27393755 21820185 45917164 29486608 33403504 19856764
+
+data<-lapply(data,function(x) 
+  x%>%mutate(across(PGP95:CD20,function(x) asinh(x/5))))
+#should robustly scale using the 1st–99th percentiles instead
+data<-lapply(data,function(x) 
+    x%>%mutate(across(PGP95:CD20,function(x) (x-quantile(x,.01))/(quantile(x,.99)-quantile(x,.01)))))
+data<-lapply(data,function(x) 
+  x%>%mutate(across(PGP95:CD20,function(x) case_when(x>1~1,x<0~0,TRUE~x))))
+thr<-lapply(data,function(x) apply(x[,3:7],2,quantile,.95))
+
+```
+
+```{r}
+filtered<-data%>%pivot_longer(PGP95:CD20,names_to = "protein",values_to = "signal")
+filtered<-filtered%>%filter(signal>.9)%>%add_count(x,y)%>%filter(n<3)
+filtered<-filtered%>%group_by(x,y)%>%
+  mutate(pair=ifelse(n==2,
+                     paste(unique(protein),collapse = ','),
+                     "single"))
+filtered<-filtered%>%filter(pair%in%c("single","CD45,CD20"))
+plots<-lapply(names(thr),function(z) 
+  filtered%>%filter(protein==z)%>%ggplot(aes(x=x,y=-y,col=signal))+
+    geom_point(size=.1)+scale_color_viridis_c(option = 'H')+ggtitle(z))
+gridExtra::grid.arrange(grobs=plots)
+```
+
+```{r}
+library(dbscan)
+temp<-filtered$SL260087%>%filter(CD45==1)%>%slice_max(CD20,n=10000)
+temp$cl<-dbscan(temp[,1:2],eps = 1000,minPts = 100)$cluster
+temp%>%ggplot(aes(x=x,y=-y,col=as.factor(cl)))+geom_point(size=1)
+
+i<-temp%>%group_by(cl)%>%mutate(min_x=min(x),
+                                max_x=max(x),
+                                min_y=min(y),
+                                max_y=max(y),
+                                max_dist=sqrt((max_x-min_x)**2+(max_y-min_y)**2)%>%
+  distinct(cl,max_dist)%>%arrange(max_dist)%>%head(-1)
+i<-temp%>%filter(cl%in%i$cl)%>%distinct(x,y,cl)
+temp<-filtered$SL260087%>%left_join(i)
+ temp<-temp%>%filter((PGP95==1&CD45<0.6814541&CD10<0.2870845&CD20<0.6625389)|!is.na(cl))
+ temp%>%mutate(paint=ifelse(is.na(cl),"PGP95",paste('cl',cl)))%>%ggplot(aes(x=x,y=-y,col=paint))+geom_point(size=.1)+guides(col=guide_legend(override.aes = list(size=5)))+labs(col="LA/PGP95")+xlim(0,80000)+ylim(-60000,0)
+ 
+i%>%group_by(cl)%>%summarise(x=median(x),y=median(y))
+```
