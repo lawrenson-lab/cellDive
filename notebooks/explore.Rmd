@@ -18,27 +18,42 @@ data<-lapply(data,function(x)
     x%>%mutate(across(PGP95:CD20,function(x) (x-quantile(x,.01))/(quantile(x,.99)-quantile(x,.01)))))
 data<-lapply(data,function(x) 
   x%>%mutate(across(PGP95:CD20,function(x) case_when(x>1~1,x<0~0,TRUE~x))))
-thr<-lapply(data,function(x) apply(x[,3:7],2,quantile,.95))
 
+temp<-sapply(data,function(x) colMeans(x[,3:7]))
+temp<-temp%>%t()%>%as.data.frame()%>%rownames_to_column("Sample")
+temp<-sapply(data,nrow)%>%as.data.frame()%>%
+  rownames_to_column("Sample")%>%inner_join(temp)
+colnames(temp)[2]<-"points"
 ```
 
 ```{r}
-filtered<-data%>%pivot_longer(PGP95:CD20,names_to = "protein",values_to = "signal")
-filtered<-filtered%>%filter(signal>.9)%>%add_count(x,y)%>%filter(n<3)
-filtered<-filtered%>%group_by(x,y)%>%
+filtered<-lapply(data,function(x)
+  x%>%pivot_longer(PGP95:CD20,names_to = "protein",values_to = "signal"))
+filtered<-lapply(filtered,function(x) 
+  x%>%filter(signal>.9)%>%add_count(x,y)%>%filter(n<3))
+filtered<-lapply(filtered,function(x) 
+  x%>%group_by(x,y)%>%
   mutate(pair=ifelse(n==2,
                      paste(unique(protein),collapse = ','),
-                     "single"))
-filtered<-filtered%>%filter(pair%in%c("single","CD45,CD20"))
-plots<-lapply(names(thr),function(z) 
-  filtered%>%filter(protein==z)%>%ggplot(aes(x=x,y=-y,col=signal))+
+                     "single")))
+filtered<-lapply(filtered,function(x)
+  x%>%filter(pair%in%c("single","CD45,CD20")))
+
+visual_inspection<-function(samp){
+  plots<-lapply(colnames(temp)[3:7],function(z) 
+    filtered[[samp]]%>%filter(protein==z)%>%ggplot(aes(x=x,y=-y,col=signal))+
     geom_point(size=.1)+scale_color_viridis_c(option = 'H')+ggtitle(z))
-gridExtra::grid.arrange(grobs=plots)
+  plots[[6]]<-filtered[[samp]]%>%
+    filter((pair=="single"&!protein%in%c("CD45","CD20"))|
+           (protein=="CD20"&pair!="single"))%>%
+    ggplot(aes(x=x,y=-y,col=protein))+geom_point(size=.1)+
+    guides(col=guide_legend(override.aes = list(size=5)))
+  gridExtra::grid.arrange(grobs=plots)}
 ```
 
 ```{r}
 library(dbscan)
-temp<-filtered$SL260087%>%filter(CD45==1)%>%slice_max(CD20,n=10000)
+temp<-filtered$SL260088%>%filter(protein=="KRT8")
 temp$cl<-dbscan(temp[,1:2],eps = 1000,minPts = 100)$cluster
 temp%>%ggplot(aes(x=x,y=-y,col=as.factor(cl)))+geom_point(size=1)
 
