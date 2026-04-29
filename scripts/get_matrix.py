@@ -137,7 +137,7 @@ y_flat = yv.reshape(-1)[mask_flat]
 af_img = bin_image(af_img, BIN_SIZE)
 af_flat = af_img.reshape(-1)[mask_flat]
 
-dapi_img = bin_image(dapi_avg, BIN_SIZE)
+dapi_binned = bin_image(dapi_avg, BIN_SIZE)
 dapi_flat=dapi_binned.reshape(-1)[mask_flat]
 
 # =========================
