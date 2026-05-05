@@ -1,5 +1,7 @@
 ```{r}
 library(tidyverse)
+library(dbscan)
+
 files<-list.files("/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp",full.names = T)
 files<-files[str_detect(files,"SL")]
 files<-list.files(files,full.names = T)
@@ -7,9 +9,6 @@ files<-files[str_detect(files,"csv")]
 data<-lapply(files,data.table::fread)
 #8.5 GB 
 names(data)<-str_remove_all(files,".+temp\\/|.pix.+")
-sapply(data,nrow)#size in aggregated pixels
-#SL260087 SL260088 SL260089 SL260090 SL260091 SL260092 
-#27393755 21820185 45917164 29486608 33403504 19856764
 
 data<-lapply(data,function(x) 
   x%>%mutate(across(PGP95:CD20,function(x) asinh(x/5))))
@@ -19,11 +18,6 @@ data<-lapply(data,function(x)
 data<-lapply(data,function(x) 
   x%>%mutate(across(PGP95:CD20,function(x) case_when(x>1~1,x<0~0,TRUE~x))))
 
-temp<-sapply(data,function(x) colMeans(x[,3:7]))
-temp<-temp%>%t()%>%as.data.frame()%>%rownames_to_column("Sample")
-temp<-sapply(data,nrow)%>%as.data.frame()%>%
-  rownames_to_column("Sample")%>%inner_join(temp)
-colnames(temp)[2]<-"points"
 ```
 
 ```{r}
@@ -46,33 +40,45 @@ positives<-lapply(filtered,function(x)
 ```
 
 ```{r}
-library(dbscan)
 
 for(i in 1:length(filtered)){
   positives[[i]]$cl<-dbscan(positives[[i]][,1:2],
-                           minPts = 5,
+                           minPts = 2,
                            eps = 100,
                            borderPoints = F)$cluster}
 positives<-lapply(positives,function(x)
       x%>%select(-n)%>%add_count(cl,protein)%>%
-        group_by(protein)%>%filter(n<quantile(cl,.9)|protein=="CD20"))
+        group_by(protein)%>%filter(n<quantile(n,.9)|!protein%in%c("PGP95","CD20"))
       
-#filtered%>%group_by(protein)%>%summarise(avg_signal=mean(signal),pixels=n())
+temp<-as.data.frame(cbind(Sample=names(data),
+                          total=sapply(data,nrow),
+                          thr_1=sapply(filtered,nrow),
+                          thr_2=sapply(positives,nrow),
+                          PGP95_pos=sapply(positives,function(x) 
+                            x%>%filter(protein=="PGP95")%>%nrow())))
 
 visual_inspection<-function(samp){
   plots<-lapply(c("CD10","KRT8","CD45","CD20","PGP95"),function(z) 
     filtered[[samp]]%>%filter(protein==z)%>%ggplot(aes(x=x,y=-y,col=signal))+
     geom_point(size=.1)+scale_color_viridis_c(option = 'H')+ggtitle(z))
   plots[[6]]<-positives[[samp]]%>%
-    filter((pair=="single"&!protein%in%c("CD45","CD20"))|
-           (protein=="CD20"&pair!="single"))%>%filter(signal==1)%>%
     ggplot(aes(x=x,y=-y,col=protein))+geom_point(size=.1)+
     guides(col=guide_legend(override.aes = list(size=5)))
   gridExtra::grid.arrange(grobs=plots)}
+```
 
+```{r}
 centr<-lapply(positives,function(x) 
   x%>%group_by(cl,protein)%>%
   summarise(x=median(x),y=median(y),n=n()))
+temp<-lapply(names(data),function(i) 
+  centr[[i]]%>%mutate(Sample=i))%>%bind_rows()%>%
+  group_by(Sample,protein)%>%filter(n>2)%>%#arbitrary threshold
+  summarise(LA_size=sum(n),LA_total=n())%>%
+  filter(protein=="CD20")%>%ungroup()%>%select(-protein)%>%
+  right_join(temp)
+
+
 mat<-lapply(1:length(positives),function(z)
   apply(centr[[z]],1,function(x) 
     apply(centr[[z]]%>%filter(protein=="CD20"),1,function(y) sqrt((as.numeric(x[3])-as.numeric(y[3]))**2+(as.numeric(x[4])-as.numeric(y[4]))**2))))
