@@ -33,40 +33,52 @@ filtered<-lapply(filtered,function(x)
   x%>%filter(signal>.9)%>%add_count(x,y)%>%filter(n<3))
 filtered<-lapply(filtered,function(x) 
   x%>%group_by(x,y)%>%
-  mutate(pair=ifelse(n==2,
+  group_by(x,y)%>%mutate(pair=ifelse(n==2,
                      paste(unique(protein),collapse = ','),
-                     "single")))
+                     "single"))%>%ungroup)
 filtered<-lapply(filtered,function(x)
   x%>%filter(pair%in%c("single","CD45,CD20")))
 
-visual_inspection<-function(samp){
-  plots<-lapply(colnames(temp)[3:7],function(z) 
-    filtered[[samp]]%>%filter(protein==z)%>%ggplot(aes(x=x,y=-y,col=signal))+
-    geom_point(size=.1)+scale_color_viridis_c(option = 'H')+ggtitle(z))
-  plots[[6]]<-filtered[[samp]]%>%
-    filter((pair=="single"&!protein%in%c("CD45","CD20"))|
-           (protein=="CD20"&pair!="single"))%>%
-    ggplot(aes(x=x,y=-y,col=protein))+geom_point(size=.1)+
-    guides(col=guide_legend(override.aes = list(size=5)))
-  gridExtra::grid.arrange(grobs=plots)}
+positives<-lapply(filtered,function(x)
+  x%>%filter((pair=="single"&!protein%in%c("CD45","CD20"))|
+           (protein=="CD20"&pair!="single"))%>%filter(signal==1))
+
 ```
 
 ```{r}
 library(dbscan)
-temp<-filtered$SL260088%>%filter(protein=="KRT8")
-temp$cl<-dbscan(temp[,1:2],eps = 1000,minPts = 100)$cluster
-temp%>%ggplot(aes(x=x,y=-y,col=as.factor(cl)))+geom_point(size=1)
 
-i<-temp%>%group_by(cl)%>%mutate(min_x=min(x),
-                                max_x=max(x),
-                                min_y=min(y),
-                                max_y=max(y),
-                                max_dist=sqrt((max_x-min_x)**2+(max_y-min_y)**2)%>%
-  distinct(cl,max_dist)%>%arrange(max_dist)%>%head(-1)
-i<-temp%>%filter(cl%in%i$cl)%>%distinct(x,y,cl)
-temp<-filtered$SL260087%>%left_join(i)
- temp<-temp%>%filter((PGP95==1&CD45<0.6814541&CD10<0.2870845&CD20<0.6625389)|!is.na(cl))
- temp%>%mutate(paint=ifelse(is.na(cl),"PGP95",paste('cl',cl)))%>%ggplot(aes(x=x,y=-y,col=paint))+geom_point(size=.1)+guides(col=guide_legend(override.aes = list(size=5)))+labs(col="LA/PGP95")+xlim(0,80000)+ylim(-60000,0)
- 
-i%>%group_by(cl)%>%summarise(x=median(x),y=median(y))
+for(i in 1:length(filtered)){
+  positives[[i]]$cl<-dbscan(positives[[i]][,1:2],
+                           minPts = 5,
+                           eps = 100,
+                           borderPoints = F)$cluster}
+positives<-lapply(positives,function(x)
+      x%>%select(-n)%>%add_count(cl,protein)%>%
+        group_by(protein)%>%filter(n<quantile(cl,.9)|protein=="CD20"))
+      
+#filtered%>%group_by(protein)%>%summarise(avg_signal=mean(signal),pixels=n())
+
+visual_inspection<-function(samp){
+  plots<-lapply(c("CD10","KRT8","CD45","CD20","PGP95"),function(z) 
+    filtered[[samp]]%>%filter(protein==z)%>%ggplot(aes(x=x,y=-y,col=signal))+
+    geom_point(size=.1)+scale_color_viridis_c(option = 'H')+ggtitle(z))
+  plots[[6]]<-positives[[samp]]%>%
+    filter((pair=="single"&!protein%in%c("CD45","CD20"))|
+           (protein=="CD20"&pair!="single"))%>%filter(signal==1)%>%
+    ggplot(aes(x=x,y=-y,col=protein))+geom_point(size=.1)+
+    guides(col=guide_legend(override.aes = list(size=5)))
+  gridExtra::grid.arrange(grobs=plots)}
+
+centr<-lapply(positives,function(x) 
+  x%>%group_by(cl,protein)%>%
+  summarise(x=median(x),y=median(y),n=n()))
+mat<-lapply(1:length(positives),function(z)
+  apply(centr[[z]],1,function(x) 
+    apply(centr[[z]]%>%filter(protein=="CD20"),1,function(y) sqrt((as.numeric(x[3])-as.numeric(y[3]))**2+(as.numeric(x[4])-as.numeric(y[4]))**2))))
+for(i in 1:length(filtered)){
+  centr[[i]]$min_dist_to_LA<-apply(mat[[i]], 2,min)}
+lapply(centr,function(x)
+  x%>%group_by(protein)%>%summarise(min_dist_to_LA=mean(min_dist_to_LA)))
+
 ```

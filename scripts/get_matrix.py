@@ -12,15 +12,15 @@ import pandas as pd
 # =========================
 
 MARKER_FILES = {
-    "PGP95": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy3_PGP9-5-AF555_FINAL_AFR_F.ome.tif",
-    "CD45": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy5_CD45-AF647_FINAL_AFR_F.ome.tif",
-    "CD10": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy7_CD10-CF750_FINAL_AFR_F.ome.tif",
-    "DAPI_R1": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_DAPI__FINAL_F.ome.tif",
-    "KRT8": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_Cy5_KRT8-18-AF647_FINAL_AFR_F.ome.tif",
-    "DAPI_R2": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_DAPI__FINAL_F.ome.tif",
-    "CD20": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_FITC_CD20-AF488_FINAL_AFR_F.ome.tif",
+    "PGP95": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_Cy3_PGP9-5-AF555_FINAL_AFR_F.ome.tif",
+    "CD45": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_Cy5_CD45-AF647_FINAL_AFR_F.ome.tif",
+    "CD10": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_Cy7_CD10-CF750_FINAL_AFR_F.ome.tif",
+    "DAPI_R1": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_DAPI__FINAL_F.ome.tif",
+    "KRT8": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_2.0.4_R000_Cy5_KRT8-18-AF647_FINAL_AFR_F.ome.tif",
+    "DAPI_R2": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_2.0.4_R000_DAPI__FINAL_F.ome.tif",
+    "CD20": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_2.0.4_R000_FITC_CD20-AF488_FINAL_AFR_F.ome.tif",
 }
-AUTOFLUORESCENCE_FILE = "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.1_R000_DAPI_AF_F.ome.tif"
+AUTOFLUORESCENCE_FILE = "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038.0.1_R000_DAPI_AF_F.ome.tif"
 
 DAPI_MARKERS = ["DAPI_R1", "DAPI_R2"]
 
@@ -31,9 +31,9 @@ BIN_SIZE = 40   # at 50 KRT8 fragments
 
 AF_SCALING_FACTOR = 0.6
 
-OUTPUT_DIR = "/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp/SL260088/"
+OUTPUT_DIR = "/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp/SL260089/"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
+# 132990609 May  4 22:29 pixel_matrix.csv <------------------------------------------
 # =========================
 # FUNCTIONS
 # =========================
