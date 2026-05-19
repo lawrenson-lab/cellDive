@@ -6,185 +6,303 @@ import tifffile
 import matplotlib.pyplot as plt
 from skimage.filters import gaussian
 import pandas as pd
+from scipy.ndimage import (
+    gaussian_filter,
+    binary_erosion,
+    zoom,
+)
+import skimage.exposure as skie
+from sklearn.linear_model import HuberRegressor
+from skimage.exposure import rescale_intensity
+import gc
 
 # =========================
 # USER INPUTS
 # =========================
 
 MARKER_FILES = {
-    "PGP95": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_Cy3_PGP9-5-AF555_FINAL_AFR_F.ome.tif",
-    "CD45": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_Cy5_CD45-AF647_FINAL_AFR_F.ome.tif",
-    "CD10": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_Cy7_CD10-CF750_FINAL_AFR_F.ome.tif",
-    "DAPI_R1": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_DAPI__FINAL_F.ome.tif",
-    "KRT8": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_2.0.4_R000_Cy5_KRT8-18-AF647_FINAL_AFR_F.ome.tif",
-    "DAPI_R2": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_2.0.4_R000_DAPI__FINAL_F.ome.tif",
-    "CD20": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_2.0.4_R000_FITC_CD20-AF488_FINAL_AFR_F.ome.tif",
+    "PGP95": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260090-CD26039_S19-06413-5580-US-4/raw/CD26039_1.0.4_R000_Cy3_PGP9-5-AF555_FINAL_AFR_F.ome.tif",
+    "CD45": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260090-CD26039_S19-06413-5580-US-4/raw/CD26039_1.0.4_R000_Cy5_CD45-AF647_FINAL_AFR_F.ome.tif",
+    "CD10": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260090-CD26039_S19-06413-5580-US-4/raw/CD26039_1.0.4_R000_Cy7_CD10-CF750_FINAL_AFR_F.ome.tif",
+    "DAPI_R1": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260090-CD26039_S19-06413-5580-US-4/raw/CD26039_1.0.4_R000_DAPI__FINAL_F.ome.tif",
+    "KRT8": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260090-CD26039_S19-06413-5580-US-4/raw/CD26039_2.0.4_R000_Cy5_KRT8-18-AF647_FINAL_AFR_F.ome.tif",
+    "DAPI_R2": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260090-CD26039_S19-06413-5580-US-4/raw/CD26039_2.0.4_R000_DAPI__FINAL_F.ome.tif",
+    "CD20": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260090-CD26039_S19-06413-5580-US-4/raw/CD26039_2.0.4_R000_FITC_CD20-AF488_FINAL_AFR_F.ome.tif",
 }
-AUTOFLUORESCENCE_FILE = "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038.0.1_R000_DAPI_AF_F.ome.tif"
+AUTOFLUORESCENCE_FILE = "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260090-CD26039_S19-06413-5580-US-4/raw/CD26039_1.0.1_R000_DAPI_AF_F.ome.tif"
 
 DAPI_MARKERS = ["DAPI_R1", "DAPI_R2"]
 
-ARCSINH_COFACTOR = 5
-GAUSSIAN_SIGMA = 1
-GAUSSIAN_SIGMA_AF = 3
-BIN_SIZE = 40   # at 50 KRT8 fragments
+BIN_SIZE = 20   # at 50 KRT8 fragments
 
-AF_SCALING_FACTOR = 0.6
-
-OUTPUT_DIR = "/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp/SL260089/"
+OUTPUT_DIR = "/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp/SL260090/"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-# 132990609 May  4 22:29 pixel_matrix.csv <------------------------------------------
 # =========================
 # FUNCTIONS
 # =========================
+def load_tif(path):
 
-def bin_image(image, bin_size):
-    H, W = image.shape
-    H2 = H // bin_size
-    W2 = W // bin_size
-    image = image[:H2*bin_size, :W2*bin_size]
-    return image.reshape(H2, bin_size, W2, bin_size).mean(axis=(1,3))
+    img = tifffile.imread(path)
 
-def bin_image_with_coords(image, bin_size):
-    binned = bin_image(image, bin_size)
-    H2, W2 = binned.shape
+    if img.ndim > 2:
+        img = img.squeeze()
 
-    y_coords = (np.arange(H2) * bin_size + bin_size // 2)
-    x_coords = (np.arange(W2) * bin_size + bin_size // 2)
+    return img.astype(np.float32)
 
-    xv, yv = np.meshgrid(x_coords, y_coords)
-    return binned, xv, yv
+def illumination_correct_fast(img,sigma=80,downscale=8):
+    small = img[::downscale, ::downscale]
+    background_small = gaussian_filter(small,
+                                       sigma=sigma / downscale)
+    background = zoom(background_small,downscale,order=1)
+    background = background[:img.shape[0],:img.shape[1]]
+    corrected = img / (background + 1e-6)
+    corrected= np.clip(1-corrected, 0,1)
+    corrected = rescale_intensity(corrected,
+                                  in_range=(np.percentile(corrected, 15),
+                                            np.percentile(corrected, 100)),
+                                  out_range=(0,1))
+    return corrected
 
-def compute_alpha(marker_vec, af_vec):
-    m = np.percentile(marker_vec, 90)
-    a = np.percentile(af_vec, 90)
-    if a == 0:
-        return 0
-    return (m / a) * AF_SCALING_FACTOR
-  
-  
+def bin_image(img, bin_size):
+
+    H, W = img.shape
+
+    H_trim = (H // bin_size) * bin_size
+    W_trim = (W // bin_size) * bin_size
+
+    img = img[:H_trim, :W_trim]
+
+    binned = img.reshape(
+        H_trim // bin_size,
+        bin_size,
+        W_trim // bin_size,
+        bin_size
+    ).mean(axis=(1,3))
+
+    return binned
+
+
+def compute_alpha(marker_vec, af_vec, dapi_vec):
+
+    bg_mask = (
+        (marker_vec < np.percentile(marker_vec, 30)) &
+        (dapi_vec < np.percentile(dapi_vec, 50))
+    )
+
+    X = af_vec[bg_mask].reshape(-1,1)
+    y = marker_vec[bg_mask]
+
+    model = HuberRegressor()
+    model.fit(X, y)
+
+    alpha = model.coef_[0]
+
+    # conservative cap
+    alpha = np.clip(alpha, 0, 0.8)
+
+    return alpha
 # =========================
-# 2. DAPI MASK                                               #
+# 2. DAPI                                            #
 # =========================
-
-dapi_r1 = tifffile.imread(MARKER_FILES["DAPI_R1"]).astype(np.float32)
-dapi_r2 = tifffile.imread(MARKER_FILES["DAPI_R2"]).astype(np.float32)
-af_img = tifffile.imread(AUTOFLUORESCENCE_FILE).astype(np.float32)
-
-dapi_r1 = np.arcsinh(dapi_r1 / ARCSINH_COFACTOR)
-dapi_r2 = np.arcsinh(dapi_r2 / ARCSINH_COFACTOR)
+print("Reading DAPI files...")
+dapi_r1 = load_tif(MARKER_FILES["DAPI_R1"])
+dapi_r2 = load_tif(MARKER_FILES["DAPI_R2"])
+print("Correcting illumination...")
+dapi_r1=illumination_correct_fast(dapi_r1,80)
+dapi_r2=illumination_correct_fast(dapi_r2,80)
+print("...done")
+#dapi_r1 = np.arcsinh(dapi_r1 / ARCSINH_COFACTOR)
+#dapi_r2 = np.arcsinh(dapi_r2 / ARCSINH_COFACTOR)
 
 # QC plot: difference
-plt.imshow(dapi_r1 - dapi_r2, cmap='bwr')
-plt.colorbar()
-plt.title("DAPI Difference (R1 - R2)")
-plt.savefig(os.path.join(OUTPUT_DIR, "dapi_difference.png"))
-plt.close()
+#plt.imshow(dapi_r1 - dapi_r2, cmap='bwr')
+#plt.colorbar()
+#plt.title("DAPI Difference (R1 - R2)")
+#plt.savefig(os.path.join(OUTPUT_DIR, "dapi_difference.png"))
+#plt.close()
 
 dapi_avg = (dapi_r1 + dapi_r2) / 2
 #diff = dapi_r1 - dapi_r2
-dapi_avg = gaussian(dapi_avg, sigma=GAUSSIAN_SIGMA)
+#dapi_avg = gaussian(dapi_avg, sigma=GAUSSIAN_SIGMA)
 plt.imshow(dapi_avg, cmap='inferno',
            vmin=np.percentile(dapi_avg, 5),
            vmax=np.percentile(dapi_avg, 99))
 plt.colorbar()
 plt.title("DAPI")
-plt.savefig(os.path.join(OUTPUT_DIR, "DAPI.png"))
-plt.close()
-
-threshold = np.percentile(dapi_avg, 60)
-print("DAPI threshold:", threshold)
-
-dapi_mask = dapi_avg > threshold
-print(f"Mask retains {dapi_mask.mean()*100:.2f}% of pixels")
+#plt.savefig(os.path.join(OUTPUT_DIR, "DAPI.png"))
+#plt.close()
 
 # =========================
 # 3. BUILD MASK (AF-based)
 # =========================
-
-af_img = tifffile.imread(AUTOFLUORESCENCE_FILE).astype(np.float32)
-af_img = np.arcsinh(af_img / ARCSINH_COFACTOR)
-af_img = gaussian(af_img, sigma=GAUSSIAN_SIGMA_AF)
-
-# QC AF plot
+print("Reading AF file")
+af_img = load_tif(AUTOFLUORESCENCE_FILE)
+af_img=illumination_correct_fast(af_img,80)
 plt.imshow(af_img, cmap='inferno',
            vmin=np.percentile(af_img, 5),
            vmax=np.percentile(af_img, 99))
 plt.colorbar()
-plt.title("Autofluorescence")
-plt.savefig(os.path.join(OUTPUT_DIR, "autofluorescence.png"))
-plt.close()
-
+plt.title("AF")
 
 print("Building tissue mask...")
 
-threshold = np.percentile(af_img, 50)
-print("AF threshold:", threshold)
+print("AF threshold:", np.percentile(af_img, 75))
+print("DAPI threshold:", np.percentile(dapi_avg, 75))
+pixel_mask = (
+    (af_img > np.percentile(af_img, 75)) |
+    (dapi_avg > np.percentile(dapi_avg, 75))
+)
+plt.imshow(pixel_mask, cmap='inferno')
+plt.colorbar()
+plt.title("Mask")
 
-af_mask = af_img > threshold
-print(f"Mask retains {af_mask.mean()*100:.2f}% of superpixels")
+#from scipy.ndimage import distance_transform_edt
 
-mask = af_mask | dapi_mask
+#distance_map = distance_transform_edt(pixel_mask)
+#pixel_mask = (
+#    distance_map >= 100
+#)
+
+print("Computing occupancy...")
+
+occupancy = bin_image(
+    pixel_mask,
+    BIN_SIZE
+)
+# ============================================================
+# QC PLOTS
+# ============================================================
+
+plt.figure(figsize=(6,5))
+plt.imshow(occupancy, cmap="viridis")
+plt.colorbar(label="Occupancy")
+plt.title("Metapixel Occupancy")
+plt.tight_layout()
+#plt.savefig(
+#    os.path.join(
+#        OUTPUT_DIR,
+#        "occupancy_map.png"
+#    ),
+#    dpi=300
+#)
+#plt.close()
+
+
+plt.figure(figsize=(6,5))
+plt.hist(
+    occupancy.ravel(),
+    bins=50
+)
+plt.axvline(
+    0.7,
+    color="red"
+)
+plt.title("Occupancy Distribution")
+plt.xlabel("Occupancy")
+plt.ylabel("Count")
+plt.tight_layout()
+#plt.savefig(
+#    os.path.join(
+#        OUTPUT_DIR,
+#        "occupancy_histogram.png"
+#    ),
+#    dpi=300
+#)
+#plt.close()
+
 # bin mask + get coordinates
-mask_binned, xv, yv = bin_image_with_coords(mask.astype(float), BIN_SIZE)
-mask = mask_binned > 0.5
+print("Binning AF and DAPI...")
 
-mask_flat = mask.reshape(-1)
-x_flat = xv.reshape(-1)[mask_flat]
-y_flat = yv.reshape(-1)[mask_flat]
+af_bin = bin_image(
+    af_img,
+    BIN_SIZE
+)
 
-# bin AF
-af_img = bin_image(af_img, BIN_SIZE)
-af_flat = af_img.reshape(-1)[mask_flat]
+dapi_bin = bin_image(
+    dapi_avg,
+    BIN_SIZE
+)
 
-dapi_binned = bin_image(dapi_avg, BIN_SIZE)
-dapi_flat=dapi_binned.reshape(-1)[mask_flat]
+meta_mask = occupancy > .7
+mask_flat = meta_mask.reshape(-1)
 
-# =========================
-# 4. PROCESS MARKERS
-# =========================
+af_flat = af_bin.reshape(-1)[mask_flat]
+
+dapi_flat = dapi_bin.reshape(-1)[mask_flat]
+# ============================================================
+# MARKERS
+# ============================================================
 
 marker_names = [m for m in MARKER_FILES if m not in DAPI_MARKERS]
-pixel_data = []
 
-print("\nProcessing markers with AF subtraction...")
+print("Processing markers...")
+
+results = []
+
+coords_y, coords_x = np.where(meta_mask)
 
 for marker in marker_names:
-    print(f"Processing {marker}...")
 
-    img = tifffile.imread(MARKER_FILES[marker]).astype(np.float32)
-    img = np.arcsinh(img / ARCSINH_COFACTOR)
-    img = gaussian(img, sigma=GAUSSIAN_SIGMA)
+    print(f"Processing {marker}")
 
-    img = bin_image(img, BIN_SIZE)
-    marker_vec = img.reshape(-1)[mask_flat]
+    img = load_tif(MARKER_FILES[marker])
 
-    # compute AF scaling
-    alpha = compute_alpha(marker_vec, af_flat)
-    print(f"  alpha = {alpha:.3f}")
+    img = illumination_correct_fast(
+        img,
+        sigma=80
+    )
+
+    img_bin = bin_image(
+        img,
+        BIN_SIZE
+    )
+
+    marker_vec = img_bin.reshape(-1)[mask_flat]
+
+    alpha = compute_alpha(
+        marker_vec,
+        af_flat,
+        dapi_flat
+    )
+    print(f"alpha = {alpha:.3f}")
 
     corrected = marker_vec - alpha * af_flat
-    corrected = np.clip(corrected, 0, None)
 
-    pixel_data.append(corrected)
+    corrected = np.clip(
+        corrected,
+        0,
+        None
+    )
 
-# =========================
-# 5. BUILD FINAL MATRIX
-# =========================
+    results.append(corrected)
 
-print("\nBuilding matrix...")
+    gc.collect()
+# ============================================================
+# SAVE FINAL MATRIX
+# ============================================================
 
-pixel_matrix = np.stack(pixel_data, axis=1)
+#final_df = pd.concat(
+#    results,
+#    ignore_index=True
+#)
+pixel_matrix = np.stack(results, axis=1)
 
 df = pd.DataFrame(pixel_matrix, columns=marker_names)
-df["x"] = x_flat
-df["y"] = y_flat
-df["DAPI_avg"]=dapi_flat
+df["x"] = coords_x
+df["y"] = coords_y
+#df["DAPI_avg"]=dapi_flat
+df = df[["x", "y"] + marker_names]
 
-df = df[["x", "y","DAPI_avg"] + marker_names]
+out_csv = os.path.join(
+    OUTPUT_DIR,
+    "meta_pixel_matrix.csv"
+)
 
-df.to_csv(os.path.join(OUTPUT_DIR, "pixel_matrix.csv"), index=False)
+df.to_csv(
+    out_csv,
+    index=False
+)
 
-print(f"Matrix shape: {df.shape}")
-
-
+print("Done.")
+print(df.head())
+print(f"Saved: {out_csv}")
