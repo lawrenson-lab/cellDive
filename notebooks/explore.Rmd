@@ -1,6 +1,6 @@
 ```{r}
 library(tidyverse)
-library(dbscan)
+library(ggpubr)
 
 files<-list.files("/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp",full.names = T)
 files<-files[str_detect(files,"meta")]
@@ -37,23 +37,24 @@ summary_plots<-lapply(names(filtered),visual_inspection)
 ```
 
 ```{r}
-centr<-lapply(positives,function(x) 
-  x%>%group_by(cl,protein)%>%
-  summarise(x=median(x),y=median(y),n=n()))
-temp<-lapply(names(data),function(i) 
-  centr[[i]]%>%mutate(Sample=i))%>%bind_rows()%>%
-  group_by(Sample,protein)%>%filter(n>2)%>%#arbitrary threshold
-  summarise(LA_size=sum(n),LA_total=n())%>%
-  filter(protein=="CD20")%>%ungroup()%>%select(-protein)%>%
-  right_join(temp)
+neuro_CD20_dist<-function(samp){
+     neuro_CD20<-filtered[[samp]]%>%filter(protein%in%c("CD20","PGP95"))
+     distmat<-as.matrix(dist(neuro_CD20[,1:2]))
+     i<-which(neuro_CD20$protein=="CD20");j<-which(neuro_CD20$protein=="PGP95")
+     distmat<-distmat[j,i]
+     mindists<-apply(distmat,1,min)
+return(mindists)}
+res<-lapply(names(filtered),neuro_CD20_dist)
+names(res)<-names(filtered)
+res<-as.data.frame(unlist(res))%>%rownames_to_column("sample")%>%
+  separate(sample,into = c("sample","neuro_pixel"),sep = '\\.')
+colnames(res)[3]<-"dist_to_CD20"
 
-
-mat<-lapply(1:length(positives),function(z)
-  apply(centr[[z]],1,function(x) 
-    apply(centr[[z]]%>%filter(protein=="CD20"),1,function(y) sqrt((as.numeric(x[3])-as.numeric(y[3]))**2+(as.numeric(x[4])-as.numeric(y[4]))**2))))
-for(i in 1:length(filtered)){
-  centr[[i]]$min_dist_to_LA<-apply(mat[[i]], 2,min)}
-lapply(centr,function(x)
-  x%>%group_by(protein)%>%summarise(min_dist_to_LA=mean(min_dist_to_LA)))
-
+p0<-res%>%ggplot(aes(x=sample,y=dist_to_CD20))+geom_violin()+
+  geom_jitter(width=.1,alpha=0.5)+geom_boxplot(width=.1,alpha=0.5)
+res<-res%>%mutate(has_LA=ifelse(sample%in%c("SL260087","SL260088","SL260089"),
+  "LA+","LA-"))
+p1<-res%>%ggplot(aes(x=has_LA,y=dist_to_CD20))+geom_violin()+
+  geom_jitter(width=.1,alpha=0.5)+geom_boxplot(width=.1,alpha=0.5)+
+  stat_compare_means(label='p.signif',comparisons = list(c("LA+","LA-")))
 ```
