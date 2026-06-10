@@ -3,25 +3,28 @@ library(tidyverse)
 library(ggpubr)
 
 files<-list.files("/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp",full.names = T)
-files<-files[str_detect(files,"meta")]
+files<-files[str_detect(files,"SL")]
 files<-list.files(files,full.names = T)
-files<-files[str_detect(files,"csv")]
+files<-files[str_detect(files,"meta")]
 data<-lapply(files,data.table::fread)
 #8.5 GB 
 names(data)<-str_remove_all(files,".+temp/|/meta.+")
 
 data<-lapply(data,function(x) 
-  x%>%mutate(across(PGP95:CD20,function(x) x/max(x)))%>%
-  pivot_longer(PGP95:CD20,names_to = "protein",values_to = "signal")%>%
-  filter(signal>0))
+    x%>%mutate(across(PGP95:CD20,function(x) ifelse(x<quantile(x,0.9),0,x/max(x))))%>%
+                   pivot_longer(PGP95:CD20,names_to = "protein",values_to = "signal")%>%
+                   filter(signal>0))
 ```
 
 ```{r}
-filtered<-lapply(data,function(x) 
-  x%>%group_by(protein)%>%mutate(thr=quantile(signal,0.9))%>%filter(signal>thr))
-filtered<-lapply(filtered,function(x) x%>%group_by(x,y)%>%slice_max(signal))
-filtered<-lapply(filtered,function(x) 
-  x%>%ungroup()%>%filter(signal>quantile(signal,0.9)))
+thres<-lapply(data,function(x) 
+  x%>%mutate(signal=round(signal,1))%>%count(protein,signal)%>%
+  group_by(protein)%>%mutate(min=min(signal),r=1-min)%>%slice_max(n))
+thres<-lapply(thres,function(x) 
+  x%>%mutate(th=case_when(min==signal~min+r/2,r<=.5&min<signal~signal,TRUE~.5))%>%
+  select(protein,th))
+filtered<-lapply(names(data),function(z) data[[z]]%>%left_join(thres[[z]])%>%filter(signal>th))
+names(filtered)<-names(data)
 ```
 
 ```{r}
