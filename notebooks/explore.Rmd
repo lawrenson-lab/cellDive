@@ -32,7 +32,7 @@ visual_inspection<-function(samp){
   plots<-lapply(c("CD10","KRT8","CD45","CD20","PGP95"),function(z) 
     filtered[[samp]]%>%filter(protein==z)%>%ggplot(aes(x=x,y=-y,col=signal))+
     geom_point(size=.1)+scale_color_viridis_c(option = 'H')+ggtitle(z))
-  plots[[6]]<-filtered[[samp]]%>%filter(protein!="CD45")%>%
+  plots[[6]]<-filtered[[samp]]%>%
     ggplot(aes(x=x,y=-y,col=protein))+geom_point(size=.1)+
     guides(col=guide_legend(override.aes = list(size=5)))
   gridExtra::grid.arrange(grobs=plots)}
