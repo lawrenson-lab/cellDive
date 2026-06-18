@@ -17,7 +17,7 @@ data<-lapply(data,function(x)
 for(i in 1:length(data)){
     data[[i]]$cl<-dbscan(data[[i]][,1:2],
                               minPts = 2,
-                              eps = 10,
+                              eps = 1,
                               borderPoints = F)$cluster}
 ```
 
@@ -29,7 +29,9 @@ temp<-lapply(data,function(x)
 thres<-lapply(thres,function(x) 
     x%>%mutate(th=ifelse((prop>.75|r>.4)&mid>.5,min+.1,min+r/2))%>%
         select(protein,th))
-filtered<-lapply(names(data),function(z) data[[z]]%>%left_join(thres[[z]])%>%filter(signal>th))
+filtered<-lapply(names(data),function(x) 
+    data[[x]]%>%left_join(thres[[x]])%>%group_by(protein,cl)%>%
+    mutate(passing=sum(signal>th))%>%filter(passing>1))
 names(filtered)<-names(data)
 ```
 
