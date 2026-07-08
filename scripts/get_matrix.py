@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.ndimage import zoom
 from sklearn.linear_model import HuberRegressor
-from skimage.filters import threshold_otsu
-
+from skimage.filters import sobel
+from skimage.feature import canny
 import gc
 
 # =========================
@@ -17,12 +17,12 @@ import gc
 # =========================
 
 MARKER_FILES = {
+    "CD10": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy7_CD10-CF750_FINAL_AFR_F.ome.tif",
+    "KRT8": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_Cy5_KRT8-18-AF647_FINAL_AFR_F.ome.tif",
     "PGP95": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy3_PGP9-5-AF555_FINAL_AFR_F.ome.tif",
     "CD45": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy5_CD45-AF647_FINAL_AFR_F.ome.tif",
-    "CD10": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy7_CD10-CF750_FINAL_AFR_F.ome.tif",
-    "DAPI_R1": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_DAPI__FINAL_F.ome.tif",
-    "KRT8": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/O13-US-4/raw/CD26037_2.0.4_R000_Cy5_KRT8-18-AF647_FINAL_AFR_F.ome.tif",
-    "DAPI_R2": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_DAPI__FINAL_F.ome.tif",
+    #"DAPI_R1": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_DAPI__FINAL_F.ome.tif",
+    #"DAPI_R2": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_DAPI__FINAL_F.ome.tif",
     "CD20": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_FITC_CD20-AF488_FINAL_AFR_F.ome.tif",
 }
 AUTOFLUORESCENCE_FILE = "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.1_R000_DAPI_AF_F.ome.tif"
@@ -34,6 +34,7 @@ BIN_SIZE = 40   # at 50 KRT8 fragments
 
 OUTPUT_DIR = "/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp/SL260088/"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 # =========================
 # 1. FUNCTIONS
 # =========================
@@ -62,9 +63,8 @@ def bin_image(img, bin_size):
 
 
 def compute_alpha(marker_vec, af_vec):#SLOW
-    bg_mask = (marker_vec < np.percentile(marker_vec, 50))
-    X = af_vec[bg_mask].reshape(-1,1)
-    y = marker_vec[bg_mask]
+    X = af_vec.reshape(-1,1)
+    y = marker_vec
     model = HuberRegressor()
     model.fit(X, y)
     alpha = model.coef_[0]
@@ -79,6 +79,7 @@ def compute_alpha(marker_vec, af_vec):#SLOW
 #    if a == 0:
 #        return 0
 #    return (m / a) * 0.7
+
 # =========================
 # 2. AF
 # =========================
@@ -145,37 +146,39 @@ coords_y, coords_x = np.where(meta_mask)
 for marker in marker_names:
     print(f"Processing {marker}")
     img = load_tif(MARKER_FILES[marker])
+    small = img[::8, ::8]
     fig, (ax1, ax2) = plt.subplots(1, 2,figsize=(10, 8))
     im1=ax1.imshow(img, cmap='inferno',
                vmin=np.percentile(img, 5),
                vmax=np.percentile(img, 99))
-        
-    img = np.arcsinh(img/ 5)
-    img_bin = bin_image(img,BIN_SIZE)
-    marker_vec = img_bin.reshape(-1)[mask_flat]
 
+    edges = canny(img,low_threshold=.75,high_threshold=.99,use_quantiles=True,mode='reflect',sigma=5)
+    edges=sobel(edges)
+    small = edges[::8, ::8]
+    im2=ax2.imshow(small, cmap='inferno',
+               vmin=np.percentile(small, 5),
+               vmax=np.percentile(small, 99))
+    plt.tight_layout() # Adjusts spacing to prevent overlap
+    plt.show()
+
+    img_corr=img.copy()
+    img_corr[edges==0] = 0
+    img_corr = np.arcsinh(img_corr/ 5)
+    
+    img_bin = bin_image(img_corr,BIN_SIZE)
+    marker_vec = img_bin.reshape(-1)[mask_flat]
     alpha = compute_alpha(
         marker_vec,
         af_flat
     )
     print(f"alpha = {alpha:.3f}")
-    img_corr=np.clip(img_bin-alpha*af_bin,0,None)
-
-    #thresh = threshold_otsu(img_corr)
-    binary_image = img_corr < np.percentile(img_corr,0.9)
-    img=img_corr.copy()
-    img[binary_image==1] = 0
-
-    im2=ax2.imshow(img, cmap='inferno',
-               vmin=np.percentile(img, 5),
-               vmax=np.percentile(img, 99))
-    plt.tight_layout() # Adjusts spacing to prevent overlap
-    plt.show()
     
+    img_corr=np.clip(img_bin-alpha*af_bin,0,None)
     marker_vec = img_corr.reshape(-1)[mask_flat]
     results.append(marker_vec)
 
     gc.collect()
+    
 # ============================================================
 # 5. SAVE FINAL MATRIX
 # ============================================================
@@ -184,8 +187,8 @@ pixel_matrix = np.stack(results, axis=1)
 df = pd.DataFrame(pixel_matrix, columns=marker_names)
 df["x"] = coords_x
 df["y"] = coords_y
-#df["AF"]=af_flat
-df = df[["x", "y"] + marker_names]
+df["AF"]=af_flat
+df = df[["x", "y","AF"] + marker_names]
 
 out_csv = os.path.join(
     OUTPUT_DIR,
