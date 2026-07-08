@@ -14,6 +14,7 @@ data<-lapply(data,function(x)
     x%>%mutate(across(PGP95:CD20,function(x) ifelse(x<quantile(x,0.9),0,x/max(x))))%>%
                    pivot_longer(PGP95:CD20,names_to = "protein",values_to = "signal")%>%
                    filter(signal>0))
+
 for(i in 1:length(data)){
     data[[i]]$cl<-dbscan(data[[i]][,1:2],
                               minPts = 2,
@@ -22,16 +23,16 @@ for(i in 1:length(data)){
 ```
 
 ```{r}
+thr<-temp%>%mutate(signal=round(signal,1))%>%count(protein,signal)%>%group_by(protein)%>%mutate(min=min(signal))%>%slice_max(n)
+
 temp<-lapply(data,function(x) 
-    x%>%group_by(protein,cl)%>%summarise(signal=mean(signal),cl_n=n())%>%
-    mutate(signal=round(signal,1))%>%group_by(protein)%>%mutate(min=min(signal),
-    r=1-min,total=sum(cl_n),prop=cl_n/total,mid=median(signal))%>%slice_max(cl_n))
+    x%>%mutate(signal=round(signal,1))%>%count(protein,signal)%>%
+        group_by(protein)%>%mutate(min=min(signal))%>%slice_max(cl_n))
 thres<-lapply(thres,function(x) 
-    x%>%mutate(th=ifelse((prop>.75|r>.4)&mid>.5,min+.1,min+r/2))%>%
+    x%>%mutate(th=ifelse(min<signal,min+(1-signal)/2,min+(1-min)/2))%>%
         select(protein,th))
 filtered<-lapply(names(data),function(x) 
-    data[[x]]%>%left_join(thres[[x]])%>%group_by(protein,cl)%>%
-    mutate(passing=sum(signal>th))%>%filter(passing>1))
+    data[[x]]%>%left_join(thres[[x]])%>%filter(signal>th))
 names(filtered)<-names(data)
 ```
 
