@@ -9,43 +9,39 @@ files<-files[str_detect(files,"meta")]
 data<-lapply(files,data.table::fread)
 #8.5 GB 
 names(data)<-str_remove_all(files,".+temp/|/meta.+")
+data<-lapply(data,function(i) i%>%filter(CD10>0|KRT8>0|PGP95>0|CD45>0|CD20>0))
 
 data<-lapply(data,function(x) 
-    x%>%mutate(across(PGP95:CD20,function(x) ifelse(x<quantile(x,0.9),0,x/max(x))))%>%
-                   pivot_longer(PGP95:CD20,names_to = "protein",values_to = "signal")%>%
+    x%>%mutate(across(AF:CD20,function(x) ifelse(x<quantile(x,0.9),0,x/max(x))))%>%
+                   pivot_longer(AF:CD20,names_to = "protein",values_to = "signal")%>%
                    filter(signal>0))
 
-for(i in 1:length(data)){
-    data[[i]]$cl<-dbscan(data[[i]][,1:2],
-                              minPts = 2,
-                              eps = 1,
-                              borderPoints = F)$cluster}
 ```
 
 ```{r}
-thr<-temp%>%mutate(signal=round(signal,1))%>%count(protein,signal)%>%group_by(protein)%>%mutate(min=min(signal))%>%slice_max(n)
-
-temp<-lapply(data,function(x) 
-    x%>%mutate(signal=round(signal,1))%>%count(protein,signal)%>%
-        group_by(protein)%>%mutate(min=min(signal))%>%slice_max(cl_n))
-thres<-lapply(thres,function(x) 
-    x%>%mutate(th=ifelse(min<signal,min+(1-signal)/2,min+(1-min)/2))%>%
+thr<-lapply(data,function(i) i%>%mutate(signal=round(signal,1))%>%count(protein,signal)%>%
+    group_by(protein)%>%mutate(min=min(signal))%>%slice_max(n))
+thr<-lapply(thr,function(x) 
+    x%>%mutate(th=signal+(1-min)/4)%>%
         select(protein,th))
 filtered<-lapply(names(data),function(x) 
-    data[[x]]%>%left_join(thres[[x]])%>%filter(signal>th))
+    data[[x]]%>%left_join(thr[[x]])%>%filter(signal>th))
 names(filtered)<-names(data)
 ```
 
 ```{r}
+protecols<-c(CD10="#327919FF",CD20="#FFFF00FF",CD45="#6399B2FF",KRT8="#F00000FF",PGP95="#F500F5FF")
 visual_inspection<-function(samp){
   plots<-lapply(c("CD10","KRT8","CD45","CD20","PGP95"),function(z) 
     filtered[[samp]]%>%filter(protein==z)%>%ggplot(aes(x=x,y=-y,col=signal))+
     geom_point(size=.1)+scale_color_viridis_c(option = 'H')+ggtitle(z))
   plots[[6]]<-filtered[[samp]]%>%
     ggplot(aes(x=x,y=-y,col=protein))+geom_point(size=.1)+
-    guides(col=guide_legend(override.aes = list(size=5)))
+    guides(col=guide_legend(override.aes = list(size=5)))+
+    scale_color_manual(values=protecols)
   gridExtra::grid.arrange(grobs=plots)}
 summary_plots<-lapply(names(filtered),visual_inspection)
+names(summary_plots)<-names(data)
 ```
 
 ```{r}
