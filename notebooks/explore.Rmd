@@ -46,11 +46,12 @@ names(summary_plots)<-names(data)
 
 ```{r}
 neuro_CD20_dist<-function(samp){
-     neuro_CD20<-filtered[[samp]]%>%filter(protein%in%c("CD20","PGP95"))
+     neuro_CD20<-filtered[[samp]]%>%filter(protein%in%c("CD20","PGP95","CD45"))
      neuro_CD20$cl<-dbscan(neuro_CD20[,1:2],eps = 10,minPts = 2)$cluster
      neuro_CD20<-neuro_CD20%>%mutate(cl=ifelse(protein=="PGP95",NA,cl))%>%add_count(cl)     
+     neuro_CD20<-neuro_CD20%>%filter(protein=="PGP95"|n>1)
      distmat<-as.matrix(dist(neuro_CD20[,1:2]))
-     i<-which(neuro_CD20$protein=="CD20"&neuro_CD20$n>1)
+     i<-which(neuro_CD20$protein!="PGP95")
      j<-which(neuro_CD20$protein=="PGP95")
      distmat<-distmat[j,i]
      mindists<-apply(distmat,1,min)
