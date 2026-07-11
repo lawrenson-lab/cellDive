@@ -22,7 +22,7 @@ data<-lapply(data,function(x)
 thr<-lapply(data,function(i) i%>%mutate(signal=round(signal,1))%>%count(protein,signal)%>%
     group_by(protein)%>%mutate(min=min(signal))%>%slice_max(n))
 thr<-lapply(thr,function(x) 
-    x%>%mutate(th=ifelse(total<5000|prop<.3,signal,signal+(1-min)/4))%>%
+    x%>%mutate(th=ifelse(signal>.5,signal,signal+(1-min)/2))%>%
         select(protein,th))
 filtered<-lapply(names(data),function(x) 
     data[[x]]%>%left_join(thr[[x]])%>%filter(signal>th))
