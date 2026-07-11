@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.ndimage import zoom
 from sklearn.linear_model import HuberRegressor
-from skimage.filters import sobel
 from skimage.feature import canny
+from skimage.measure import label
+from skimage.morphology import dilation
 import gc
 
 # =========================
