@@ -17,22 +17,22 @@ import gc
 # =========================
 
 MARKER_FILES = {
-    "CD10": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy7_CD10-CF750_FINAL_AFR_F.ome.tif",
-    "KRT8": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_Cy5_KRT8-18-AF647_FINAL_AFR_F.ome.tif",
-    "PGP95": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy3_PGP9-5-AF555_FINAL_AFR_F.ome.tif",
-    "CD45": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_Cy5_CD45-AF647_FINAL_AFR_F.ome.tif",
-    #"DAPI_R1": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.4_R000_DAPI__FINAL_F.ome.tif",
-    #"DAPI_R2": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_DAPI__FINAL_F.ome.tif",
-    "CD20": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_2.0.4_R000_FITC_CD20-AF488_FINAL_AFR_F.ome.tif",
+    "CD10": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_Cy7_CD10-CF750_FINAL_AFR_F.ome.tif",
+    "KRT8": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_2.0.4_R000_Cy5_KRT8-18-AF647_FINAL_AFR_F.ome.tif",
+    "PGP95": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_Cy3_PGP9-5-AF555_FINAL_AFR_F.ome.tif",
+    "CD45": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_Cy5_CD45-AF647_FINAL_AFR_F.ome.tif",
+    #"DAPI_R1": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.4_R000_DAPI__FINAL_F.ome.tif",
+    #"DAPI_R2": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_2.0.4_R000_DAPI__FINAL_F.ome.tif",
+    "CD20": "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_2.0.4_R000_FITC_CD20-AF488_FINAL_AFR_F.ome.tif",
 }
-AUTOFLUORESCENCE_FILE = "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260088-CD26037_S-19-56318-B1-BEME-O13-US-4/raw/CD26037_1.0.1_R000_DAPI_AF_F.ome.tif"
+AUTOFLUORESCENCE_FILE = "/media/Lawrenson_Lab_NAS/uthscsa/collab_data/courtois_cellDive/SL260089-CD26038_S22-70591-B1-BEME-342-4-US/raw/CD26038_1.0.1_R000_DAPI_AF_F.ome.tif"
 
 DAPI_MARKERS = ["DAPI_R1", "DAPI_R2"]
 
 
 BIN_SIZE = 40   # at 50 KRT8 fragments
 
-OUTPUT_DIR = "/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp/SL260088/"
+OUTPUT_DIR = "/media/Lawrenson_Lab_NAS/uthscsa/group_data/CosMx_temp/SL260089/"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # =========================
@@ -63,22 +63,15 @@ def bin_image(img, bin_size):
 
 
 def compute_alpha(marker_vec, af_vec):#SLOW
-    X = af_vec.reshape(-1,1)
-    y = marker_vec
+    pos_mask=(marker_vec>0)
+    X = af_vec[pos_mask].reshape(-1,1)
+    y = marker_vec[pos_mask]
     model = HuberRegressor()
     model.fit(X, y)
     alpha = model.coef_[0]
     # conservative cap
-    alpha = np.clip(alpha, 0.01, 0.8)
+    alpha = np.clip(alpha, 0.01, 0.5)
     return alpha
-
-# FAST
-#def compute_alpha(marker_vec, af_vec):
-#    m = np.percentile(marker_vec, 90)
-#    a = np.percentile(af_vec, 90)
-#    if a == 0:
-#        return 0
-#    return (m / a) * 0.7
 
 # =========================
 # 2. AF
@@ -144,22 +137,26 @@ results = []
 coords_y, coords_x = np.where(meta_mask)
 
 for marker in marker_names:
-    print(f"Processing {marker}")
+    print(f"Loading {marker}")
     img = load_tif(MARKER_FILES[marker])
-    small = img[::8, ::8]
-    fig, (ax1, ax2) = plt.subplots(1, 2,figsize=(10, 8))
-    im1=ax1.imshow(img, cmap='inferno',
-               vmin=np.percentile(img, 5),
-               vmax=np.percentile(img, 99))
+    #img = img[::8, ::8]
+    #im1=ax1.imshow(img, cmap='inferno',
+    #           vmin=np.percentile(img, 5),
+    #           vmax=np.percentile(img, 99))
 
     edges = canny(img,low_threshold=.75,high_threshold=.99,use_quantiles=True,mode='reflect',sigma=5)
-    edges=sobel(edges)
-    small = edges[::8, ::8]
-    im2=ax2.imshow(small, cmap='inferno',
-               vmin=np.percentile(small, 5),
-               vmax=np.percentile(small, 99))
-    plt.tight_layout() # Adjusts spacing to prevent overlap
-    plt.show()
+    print("Processing...")
+    if marker in ["CD45","CD20","PGP95"]:
+        lab = label(edges)
+        areas = np.bincount(lab.ravel())          # area of every label, O(N) single pass
+        areas[0] = 0                                # label 0 is background, exclude it
+        edge_mask = areas >np.percentile(areas,75)
+        areas[edge_mask]=0
+        areas[areas>0]=1
+        edges = areas[lab]                     # fancy-index lookup, O(N), vectorized
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2,figsize=(10, 8))
+    im1=ax1.imshow(1-edges, cmap=plt.cm.gray)
 
     img_corr=img.copy()
     img_corr[edges==0] = 0
@@ -167,18 +164,22 @@ for marker in marker_names:
     
     img_bin = bin_image(img_corr,BIN_SIZE)
     marker_vec = img_bin.reshape(-1)[mask_flat]
-    alpha = compute_alpha(
-        marker_vec,
-        af_flat
-    )
-    print(f"alpha = {alpha:.3f}")
+    #alpha = compute_alpha(
+    #    marker_vec,
+    #    af_flat
+    #)
+    #print(f"alpha = {alpha:.3f}")
     
-    img_corr=np.clip(img_bin-alpha*af_bin,0,None)
+    #img_corr=np.clip(img_bin-alpha*af_bin,0,None)
+    img_corr=np.clip(img_bin-0.01*af_bin,0,None)
+    im2=ax2.imshow(img_corr, cmap='inferno')
+    plt.tight_layout() # Adjusts spacing to prevent overlap
+    plt.show()
+
     marker_vec = img_corr.reshape(-1)[mask_flat]
     results.append(marker_vec)
 
     gc.collect()
-    
 # ============================================================
 # 5. SAVE FINAL MATRIX
 # ============================================================
