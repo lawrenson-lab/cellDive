@@ -32,7 +32,7 @@ names(filtered)<-names(data)
 ```
 
 ```{r}
-protecols<-c(CD10="#327919FF",CD20="#FFFF00FF",CD45="#6399B2FF",KRT8="#F00000FF",PGP95="#F500F5FF")
+protecols<-c(CD10="#327919FF",CD20="#FFFF00FF",CD45="#6399B2FF",KRT8="#F00000FF",PGP95="#F500F5FF",LA="black")
 visual_inspection<-function(samp){
   plots<-lapply(c("CD10","KRT8","CD45","CD20","PGP95"),function(z) 
     filtered[[samp]]%>%filter(protein==z)%>%ggplot(aes(x=x,y=-y,col=signal))+
@@ -47,6 +47,21 @@ names(summary_plots)<-names(data)
 ```
 
 ```{r}
+temp<-lapply(filtered,function(x) x%>%filter(protein%in%c("CD20","CD45")))
+for (i in names(temp)) {
+    temp[[i]]$cl<-dbscan(temp[[i]][,3:4],eps = 10,minPts = 10)$cluster
+}
+temp<-lapply(temp,function(x) 
+    x%>%filter(cl!=0)%>%ungroup()%>%add_count(cl)%>%filter(n>2)%>%select(-n))
+temp<-lapply(temp,function(i) 
+    i%>%distinct(cl,protein)%>%add_count(cl)%>%filter(n==2)%>%select(cl)%>%
+    inner_join(i)%>%distinct(x,y,cl))
+lapply(names(temp), function(x) filtered[[x]]%>%left_join(temp[[x]])%>%
+    mutate(protein=ifelse(!is.na(cl),"LA",protein))%>%ggplot(aes(x=x,y=-y,col=protein))+
+    geom_point(size=.1)+scale_color_manual(values=protecols)+
+    guides(col=guide_legend(override.aes = list(size=3))))
+
+
 neuro_CD20_dist<-function(samp){
      neuro_CD20<-filtered[[samp]]%>%filter(protein%in%c("CD20","PGP95","CD45"))
      neuro_CD20$cl<-dbscan(neuro_CD20[,3:4],eps = 10,minPts = 2)$cluster
@@ -72,3 +87,9 @@ p1<-res%>%ggplot(aes(x=has_LA,y=dist_to_CD20))+geom_violin()+
   geom_jitter(width=.1,alpha=0.5)+geom_boxplot(width=.1,alpha=0.5)+
   stat_compare_means(label='p.signif',comparisons = list(c("LA+","LA-")))
 ```
+
+```{r}
+temp<-lapply(names(filtered),function(i) 
+    filtered[[i]]%>%mutate(Sample=i))%>%bind_rows()%>%
+    mutate(has_LA=ifelse(Sample%in%c("SL260087","SL260088","SL260089"),"LA+","LA-"))
+
