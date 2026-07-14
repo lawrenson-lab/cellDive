@@ -11,21 +11,23 @@ data<-lapply(files,data.table::fread)
 names(data)<-str_remove_all(files,".+temp/|/meta.+")
 data<-lapply(data,function(i) i%>%filter(CD10>0|KRT8>0|PGP95>0|CD45>0|CD20>0))
 
-data<-lapply(data,function(x) 
-    x%>%mutate(across(AF:CD20,function(x) ifelse(x<quantile(x,0.9),0,x/max(x))))%>%
-                   pivot_longer(AF:CD20,names_to = "protein",values_to = "signal")%>%
-                   filter(signal>0))
-
 ```
 
 ```{r}
-thr<-lapply(data,function(i) i%>%mutate(signal=round(signal,1))%>%count(protein,signal)%>%
-    group_by(protein)%>%mutate(min=min(signal))%>%slice_max(n))
-thr<-lapply(thr,function(x) 
-    x%>%mutate(th=ifelse(signal>.5,signal,signal+(1-min)/2))%>%
-        select(protein,th))
+data<-lapply(data,function(x) 
+    x%>%pivot_longer(AF:CD20,names_to = "protein",values_to = "signal")%>%
+    filter(signal>0))
+data<-lapply(data,function(x) 
+    x%>%group_by(protein)%>%mutate(normi=signal/max(signal)))
+
+thr<-lapply(names(data),function(i)
+    data[[i]]%>%mutate(normi=round(normi,1))%>%count(protein,normi)%>%
+    group_by(protein)%>%mutate(min=min(normi),total=sum(n))%>%slice_max(n)%>%
+    mutate(th=ifelse(normi>=.5|total<500,normi,min+(1-normi)/3))%>%
+    select(protein,th))
+
 filtered<-lapply(names(data),function(x) 
-    data[[x]]%>%left_join(thr[[x]])%>%filter(signal>th))
+    data[[x]]%>%left_join(thr[[x]])%>%filter(signal>th&protein!="AF"))
 names(filtered)<-names(data)
 ```
 
@@ -47,10 +49,10 @@ names(summary_plots)<-names(data)
 ```{r}
 neuro_CD20_dist<-function(samp){
      neuro_CD20<-filtered[[samp]]%>%filter(protein%in%c("CD20","PGP95","CD45"))
-     neuro_CD20$cl<-dbscan(neuro_CD20[,1:2],eps = 10,minPts = 2)$cluster
+     neuro_CD20$cl<-dbscan(neuro_CD20[,3:4],eps = 10,minPts = 2)$cluster
      neuro_CD20<-neuro_CD20%>%mutate(cl=ifelse(protein=="PGP95",NA,cl))%>%add_count(cl)     
      neuro_CD20<-neuro_CD20%>%filter(protein=="PGP95"|n>1)
-     distmat<-as.matrix(dist(neuro_CD20[,1:2]))
+     distmat<-as.matrix(dist(neuro_CD20[,3:4]))
      i<-which(neuro_CD20$protein!="PGP95")
      j<-which(neuro_CD20$protein=="PGP95")
      distmat<-distmat[j,i]
