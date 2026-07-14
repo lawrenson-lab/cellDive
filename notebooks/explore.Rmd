@@ -23,8 +23,8 @@ data<-lapply(data,function(x)
 thr<-lapply(names(data),function(i)
     data[[i]]%>%mutate(normi=round(normi,1))%>%count(protein,normi)%>%
     group_by(protein)%>%mutate(min=min(normi),total=sum(n))%>%slice_max(n)%>%
-    mutate(th=ifelse(normi>=.5|total<500,normi,min+(1-normi)/3))%>%
-    select(protein,th))
+    mutate(th=case_when(normi>=.5~normi,total<500~min,TRUE~min+(1-normi)/2))%>%
+    mutate(th=ifelse(protein%in%c("CD10","KRT8"),th-.1,th))%>%select(protein,th))
 
 filtered<-lapply(names(data),function(x) 
     data[[x]]%>%left_join(thr[[x]])%>%filter(signal>th&protein!="AF"))
