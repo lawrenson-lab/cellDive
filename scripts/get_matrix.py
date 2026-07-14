@@ -10,7 +10,8 @@ from scipy.ndimage import zoom
 from sklearn.linear_model import HuberRegressor
 from skimage.feature import canny
 from skimage.measure import label
-from skimage.morphology import dilation
+from skimage.filters import threshold_multiotsu
+
 import gc
 
 # =========================
@@ -110,24 +111,22 @@ occupancy = bin_image(pixel_mask,BIN_SIZE)
 meta_mask = occupancy > .8# with dapi mask was .4 
 
 neg_mask =np.clip(1-meta_mask, 0,None)
-small = neg_mask[::8, ::8]
 plt.figure(figsize=(8,8))
-plt.imshow(neg_mask, cmap='inferno')
+plt.imshow(neg_mask, cmap=plt.cm.gray)
 plt.colorbar()
 plt.title("Mask")
-plt.savefig(os.path.join(OUTPUT_DIR, "Neg_mask.png"))
+#plt.savefig(os.path.join(OUTPUT_DIR, "Neg_mask.png"))
 
 # bin mask + get coordinates
-print("Binning AF and DAPI...")
+print("Binning AF...")
 af_bin = bin_image(af_img,BIN_SIZE)
 #dapi_bin = bin_image(dapi_avg,BIN_SIZE)
 
 mask_flat = meta_mask.reshape(-1)
 af_flat = af_bin.reshape(-1)[mask_flat]
 #dapi_flat = dapi_bin.reshape(-1)[mask_flat]
-
 # ============================================================
-# 5. MARKERS
+# 4. MARKERS
 # ============================================================
 marker_names = [m for m in MARKER_FILES]
 
@@ -157,7 +156,7 @@ for marker in marker_names:
         edges = areas[lab]                     # fancy-index lookup, O(N), vectorized
     
     fig, (ax1, ax2) = plt.subplots(1, 2,figsize=(10, 8))
-    im1=ax1.imshow(1-edges, cmap=plt.cm.gray)
+    im1=ax1.imshow(edges, cmap="binary")
 
     img_corr=img.copy()
     img_corr[edges==0] = 0
@@ -165,15 +164,17 @@ for marker in marker_names:
     
     img_bin = bin_image(img_corr,BIN_SIZE)
     marker_vec = img_bin.reshape(-1)[mask_flat]
-    #alpha = compute_alpha(
-    #    marker_vec,
-    #    af_flat
-    #)
-    #print(f"alpha = {alpha:.3f}")
+    alpha = compute_alpha(
+        marker_vec,
+        af_flat
+    )
+    print(f"alpha = {alpha:.3f}")
     
     #img_corr=np.clip(img_bin-alpha*af_bin,0,None)
     img_corr=np.clip(img_bin-0.01*af_bin,0,None)
-    im2=ax2.imshow(img_corr, cmap='inferno')
+    thres=threshold_multiotsu(img_corr)
+    img_corr[img_corr<thres[1]]=0
+    im2=ax2.imshow(img_corr, cmap=plt.cm.gray)
     plt.tight_layout() # Adjusts spacing to prevent overlap
     plt.show()
 
