@@ -60,13 +60,12 @@ lapply(names(temp), function(x) filtered[[x]]%>%left_join(temp[[x]])%>%
     mutate(protein=ifelse(!is.na(cl),"LA",protein))%>%ggplot(aes(x=x,y=-y,col=protein))+
     geom_point(size=.1)+scale_color_manual(values=protecols)+
     guides(col=guide_legend(override.aes = list(size=3))))
-
+temp<-lapply(names(filtered),function(x)
+    filtered[[x]]%>%left_join(temp[[x]])%>%filter(protein=="PGP95"|!is.na(cl)))
+names(temp)<-names(filtered)
 
 neuro_CD20_dist<-function(samp){
-     neuro_CD20<-filtered[[samp]]%>%filter(protein%in%c("CD20","PGP95","CD45"))
-     neuro_CD20$cl<-dbscan(neuro_CD20[,3:4],eps = 10,minPts = 2)$cluster
-     neuro_CD20<-neuro_CD20%>%mutate(cl=ifelse(protein=="PGP95",NA,cl))%>%add_count(cl)     
-     neuro_CD20<-neuro_CD20%>%filter(protein=="PGP95"|n>1)
+     neuro_CD20<-temp[[samp]]
      distmat<-as.matrix(dist(neuro_CD20[,3:4]))
      i<-which(neuro_CD20$protein!="PGP95")
      j<-which(neuro_CD20$protein=="PGP95")
