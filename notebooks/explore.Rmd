@@ -20,15 +20,17 @@ data<-lapply(data,function(x)
 data<-lapply(data,function(x) 
     x%>%group_by(protein)%>%mutate(normi=signal/max(signal)))
 
-thr<-lapply(names(data),function(i)
-    data[[i]]%>%mutate(normi=round(normi,1))%>%count(protein,normi)%>%
-    group_by(protein)%>%mutate(min=min(normi),total=sum(n))%>%slice_max(n)%>%
-    mutate(th=case_when(normi>=.5~normi,total<500~min,TRUE~min+(1-normi)/2))%>%
-    mutate(th=ifelse(protein%in%c("CD10","KRT8"),th-.1,th))%>%select(protein,th))
-names(thr)<-names(data)
+thr<-lapply(data,function(x) x%>%mutate(normi=round(normi,1))%>%count(protein,normi))
+for(i in names(thr)){
+    thr[[i]]$nn<-apply(thr[[i]],1,function(x) 
+        ifelse(as.numeric(x[2])==1,0,
+        thr[[i]]$n[thr[[i]]$protein==x[1]&thr[[i]]$normi==round(.1+as.numeric(x[2]),1)]))}
+thr<-lapply(thr,function(x) 
+    x%>%mutate(th=n/nn)%>%group_by(protein)%>%slice_min(nn)%>%
+    mutate(th=normi)%>%select(protein,th))
 
 filtered<-lapply(names(data),function(x) 
-    data[[x]]%>%left_join(thr[[x]])%>%filter(signal>th&protein!="AF"))
+    data[[x]]%>%left_join(thr[[x]])%>%filter(normi>th&protein!="AF"))
 names(filtered)<-names(data)
 ```
 
