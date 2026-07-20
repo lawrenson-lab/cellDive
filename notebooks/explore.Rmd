@@ -15,7 +15,7 @@ data<-lapply(data,function(i) i%>%filter(CD10>0|KRT8>0|PGP95>0|CD45>0|CD20>0))
 
 ```{r}
 data<-lapply(data,function(x) 
-    x%>%pivot_longer(AF:CD20,names_to = "protein",values_to = "signal")%>%
+    x%>%pivot_longer(AF:CD45,names_to = "protein",values_to = "signal")%>%
     filter(signal>0))
 data<-lapply(data,function(x) 
     x%>%group_by(protein)%>%mutate(normi=signal/max(signal)))
@@ -25,7 +25,7 @@ set_threshold<-function(values){
      else{
          d<-density(values)
          th<-which(diff(d$y)<0)
-	 th<-max(which(th==min(th):max(th)))
+	       th<-max(which(th==min(th):max(th)))
          th<-d$x[th]}
      return(th)}
 lapply(data,function(x) 
@@ -75,7 +75,7 @@ names(temp)<-names(filtered)
 
 neuro_CD20_dist<-function(samp){
      neuro_CD20<-temp[[samp]]
-     distmat<-as.matrix(dist(neuro_CD20[,3:4]))
+     distmat<-as.matrix(dist(neuro_CD20[,1:2]))#verify x,y columns
      i<-which(neuro_CD20$protein!="PGP95")
      j<-which(neuro_CD20$protein=="PGP95")
      distmat<-distmat[j,i]
@@ -95,9 +95,4 @@ p1<-res%>%ggplot(aes(x=has_LA,y=dist_to_CD20))+geom_violin()+
   geom_jitter(width=.1,alpha=0.5)+geom_boxplot(width=.1,alpha=0.5)+
   stat_compare_means(label='p.signif',comparisons = list(c("LA+","LA-")))
 ```
-
-```{r}
-temp<-lapply(names(filtered),function(i) 
-    filtered[[i]]%>%mutate(Sample=i))%>%bind_rows()%>%
-    mutate(has_LA=ifelse(Sample%in%c("SL260087","SL260088","SL260089"),"LA+","LA-"))
 
