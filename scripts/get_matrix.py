@@ -143,42 +143,40 @@ for marker in marker_names:
     #im1=ax1.imshow(img, cmap='inferno',
     #           vmin=np.percentile(img, 5),
     #           vmax=np.percentile(img, 99))
-
-    edges = canny(img,low_threshold=.75,high_threshold=.99,use_quantiles=True,mode='reflect',sigma=5)
-    print("Processing...")
-    if marker in ["CD45","CD20","PGP95"]:
-        lab = label(edges)
-        areas = np.bincount(lab.ravel())          # area of every label, O(N) single pass
-        areas[0] = 0                                # label 0 is background, exclude it
-        edge_mask = areas >np.percentile(areas,75)
-        areas[edge_mask]=0
-        areas[areas>0]=1
-        edges = areas[lab]                     # fancy-index lookup, O(N), vectorized
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2,figsize=(10, 8))
-    im1=ax1.imshow(edges, cmap="binary")
-
+    thres=threshold_otsu(img)
     img_corr=img.copy()
+    img_corr[img_corr<thres]=0
+
+    if(np.count_nonzero(img_corr)>10000000000):
+        thres=np.percentile(img,0.99)
+        img_corr[img_corr<thres]=0
+
+
+    sigma=3
+    print("Running canny")
+    if marker in ["PGP95"]:
+        sigma=1
+
+        
+    edges = canny(img_corr,low_threshold=.75,
+                  high_threshold=.99,
+                  use_quantiles=True,
+                  mode='reflect',
+                  sigma=sigma,
+                  mask=pixel_mask)
+    fig, (ax1, ax2) = plt.subplots(1, 2,figsize=(10, 8))
+    small = edges[::8, ::8]
+    small = np.clip(1-small, 0,None)
+    im1=ax1.imshow(small, cmap="binary")
+
     img_corr[edges==0] = 0
-    img_corr = np.arcsinh(img_corr/ 5)
-    
+    img_corr = np.arcsinh(img_corr/ 5)    
     img_bin = bin_image(img_corr,BIN_SIZE)
-    marker_vec = img_bin.reshape(-1)[mask_flat]
-    alpha = compute_alpha(
-        marker_vec,
-        af_flat
-    )
-    print(f"alpha = {alpha:.3f}")
-    
-    #img_corr=np.clip(img_bin-alpha*af_bin,0,None)
-    img_corr=np.clip(img_bin-0.01*af_bin,0,None)
-    thres=threshold_multiotsu(img_corr)
-    img_corr[img_corr<thres[1]]=0
-    im2=ax2.imshow(img_corr, cmap=plt.cm.gray)
+    im2=ax2.imshow(img_bin, cmap=plt.cm.gray)
     plt.tight_layout() # Adjusts spacing to prevent overlap
     plt.show()
 
-    marker_vec = img_corr.reshape(-1)[mask_flat]
+    marker_vec = img_bin.reshape(-1)[mask_flat]
     results.append(marker_vec)
 
     gc.collect()
