@@ -142,7 +142,7 @@ for marker in marker_names:
     print(total)
 
     if(total>10000000 or total<1000000):
-        k=3000000
+        k=5000000
         flat=img.reshape(-1)
         flat=flat[flat != 0]
         largest_vals = np.partition(flat, -k)[-k:]# Create a flat boolean mask
@@ -179,7 +179,7 @@ for marker in marker_names:
             blob_mask[rr, cc] = True
         img_bin[blob_mask==0]=0
 
-    if(marker in ["CD10","KRT8"]):
+    if(marker == "CD10"):
         img_shapes=img_bin.copy()
         img_shapes[img_shapes>0]=1
         objects = label(img_shapes,connectivity=2)
